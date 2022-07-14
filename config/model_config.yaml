@@ -1,0 +1,79 @@
+model:
+  name: cloud-classification-model
+  author: Yuyan Wu
+  version: 1.0
+  description: Model pipeline that classifies clouds into one of two kinds
+  tags:
+    - classifier
+    - cloud
+  dependencies: requirements.txt
+create_datasets:
+  acquire_raw_data:
+    input_path: "https://archive.ics.uci.edu/ml/machine-learning-databases/undocumented/taylor/cloud.data"
+    output_path: "data/raw/clouds.data"
+  get_clouds:
+    input_path: "data/raw/clouds.data"
+    columns: ["visible_mean", "visible_max", "visible_min", "visible_mean_distribution", "visible_contrast",
+           "visible_entropy", "visible_second_angular_momentum", "IR_mean", "IR_max", "IR_min"]
+    first_cloud: [53,1077]
+    second_cloud: [1082,2105]
+    output_path: "data/interim/clouds.csv"
+process_data:
+  load_data:
+    input_path: "data/interim/clouds.csv"
+  get_features:
+    columns: ["visible_mean", "visible_max", "visible_min", "visible_mean_distribution", "visible_contrast",
+           "visible_entropy", "visible_second_angular_momentum", "IR_mean", "IR_max", "IR_min"]
+  save_features:
+    output_path: "data/interim/features.csv"
+  get_target:
+    column: "class"
+    output_path: "data/interim/target.csv"
+generate_additional_features:
+  log_transform:
+    log_col: "visible_entropy"
+    additional_feature: "log_entropy"
+  multiply:
+    col1: "visible_entropy"
+    col2: "visible_contrast"
+    additional_feature: "entropy_x_contrast"
+  col_range:
+    min_col: "IR_min"
+    max_col: "IR_max"
+    additional_feature: "IR_range"
+  norm_range:
+    min_col: "IR_min"
+    max_col: "IR_max"
+    mean_col: "IR_mean"
+    additional_feature: "IR_norm_range"
+train_model:
+  split_data:
+    feature_path: "data/interim/features.csv"
+    target_path: "data/interim/target.csv"
+    test_size: 0.4
+    random_state: 42
+    x_train_path: "data/interim/x_train.csv"
+    x_test_path: "data/interim/x_test.csv"
+    y_train_path: "data/interim/y_train.csv"
+    y_test_path: "data/interim/y_test.csv"
+  fit_model:
+    x_train_path: "data/interim/x_train.csv"
+    y_train_path: "data/interim/y_train.csv"
+    initial_features: ["log_entropy", "IR_norm_range", "entropy_x_contrast"]
+    n_estimators: 10
+    max_depth: 10
+    random_state: 42
+    output_path: "models/model.joblib"
+score_model:
+  predict:
+    input_path: "models/model.joblib"
+    x_test_path: "data/interim/x_test.csv"
+    initial_features: ["log_entropy", "IR_norm_range", "entropy_x_contrast"]
+    proba_output_path: "models/predicted_proba.csv"
+    bin_output_path: "models/predicted_class.csv"
+evaluate_performance:
+  evaluate:
+    proba_input_path: "models/predicted_proba.csv"
+    bin_input_path: "models/predicted_class.csv"
+    y_test_path: "data/interim/y_test.csv"
+    output_path: "models/metrics.txt"
